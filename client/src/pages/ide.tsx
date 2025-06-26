@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { apiRequest } from "@/lib/queryClient";
@@ -10,7 +12,7 @@ import FileExplorer from "@/components/file-explorer";
 import MonacoEditor from "@/components/monaco-editor";
 import ConsolePanel from "@/components/console-panel";
 import { useWebSocket } from "@/hooks/use-websocket";
-import { Play, Share, User, Code, GitBranch, Wifi, ChevronDown, Keyboard } from "lucide-react";
+import { Play, Share, User, Code, GitBranch, Wifi, ChevronDown, Keyboard, Plus } from "lucide-react";
 import type { Project, File } from "@shared/schema";
 
 export default function IDE() {
@@ -27,8 +29,12 @@ export default function IDE() {
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
   const [showNewFileDialog, setShowNewFileDialog] = useState(false);
   const [showNewFolderDialog, setShowNewFolderDialog] = useState(false);
+  const [showNewProjectDialog, setShowNewProjectDialog] = useState(false);
   const [newFileName, setNewFileName] = useState("");
   const [newFolderName, setNewFolderName] = useState("");
+  const [newProjectName, setNewProjectName] = useState("");
+  const [newProjectDescription, setNewProjectDescription] = useState("");
+  const [selectedFramework, setSelectedFramework] = useState("vanilla");
 
   const { data: projects } = useQuery<Project[]>({
     queryKey: ["/api/projects"],
@@ -41,6 +47,601 @@ export default function IDE() {
 
   const { sendMessage, lastMessage, connectionStatus } = useWebSocket();
   const queryClient = useQueryClient();
+
+  // Framework templates
+  const frameworks = {
+    vanilla: {
+      name: "Vanilla JavaScript",
+      language: "javascript",
+      files: [
+        { name: "index.html", content: `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vanilla JS Project</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+        <h1>Hello World!</h1>
+        <p>Welcome to your new project</p>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>` },
+        { name: "style.css", content: `body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 20px;
+    background-color: #f5f5f5;
+}
+
+#app {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+h1 {
+    color: #333;
+    text-align: center;
+}` },
+        { name: "script.js", content: `console.log('Hello from Vanilla JavaScript!');
+
+document.addEventListener('DOMContentLoaded', function() {
+    const app = document.getElementById('app');
+    
+    // Add some interactivity
+    const button = document.createElement('button');
+    button.textContent = 'Click me!';
+    button.addEventListener('click', () => {
+        alert('Button clicked!');
+    });
+    
+    app.appendChild(button);
+});` }
+      ]
+    },
+    react: {
+      name: "React",
+      language: "javascript",
+      files: [
+        { name: "package.json", content: `{
+  "name": "react-project",
+  "version": "1.0.0",
+  "description": "A React project",
+  "main": "index.js",
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-scripts": "5.0.1"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  }
+}` },
+        { name: "public/index.html", content: `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>React App</title>
+</head>
+<body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root"></div>
+</body>
+</html>` },
+        { name: "src/index.js", content: `import React from 'react';
+import ReactDOM from 'react-dom/client';
+import './index.css';
+import App from './App';
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);` },
+        { name: "src/App.js", content: `import React, { useState } from 'react';
+import './App.css';
+
+function App() {
+  const [count, setCount] = useState(0);
+
+  return (
+    <div className="App">
+      <header className="App-header">
+        <h1>Welcome to React</h1>
+        <p>You clicked {count} times</p>
+        <button onClick={() => setCount(count + 1)}>
+          Click me
+        </button>
+      </header>
+    </div>
+  );
+}
+
+export default App;` },
+        { name: "src/App.css", content: `.App {
+  text-align: center;
+}
+
+.App-header {
+  background-color: #282c34;
+  padding: 20px;
+  color: white;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(10px + 2vmin);
+}
+
+button {
+  background-color: #61dafb;
+  border: none;
+  padding: 10px 20px;
+  margin: 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 16px;
+}` },
+        { name: "src/index.css", content: `body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}` }
+      ]
+    },
+    nextjs: {
+      name: "Next.js",
+      language: "javascript",
+      files: [
+        { name: "package.json", content: `{
+  "name": "nextjs-project",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "next": "14.0.4",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.5",
+    "@types/react": "^18.2.45",
+    "@types/react-dom": "^18.2.18",
+    "eslint": "^8.55.0",
+    "eslint-config-next": "14.0.4",
+    "typescript": "^5.3.3"
+  }
+}` },
+        { name: "next.config.js", content: `/** @type {import('next').NextConfig} */
+const nextConfig = {
+  experimental: {
+    appDir: true,
+  },
+}
+
+module.exports = nextConfig` },
+        { name: "app/layout.tsx", content: `import './globals.css'
+import { Inter } from 'next/font/google'
+
+const inter = Inter({ subsets: ['latin'] })
+
+export const metadata = {
+  title: 'Next.js App',
+  description: 'Generated by create next app',
+}
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  return (
+    <html lang="en">
+      <body className={inter.className}>{children}</body>
+    </html>
+  )
+}` },
+        { name: "app/page.tsx", content: `'use client'
+
+import { useState } from 'react'
+
+export default function Home() {
+  const [count, setCount] = useState(0)
+
+  return (
+    <main className="flex min-h-screen flex-col items-center justify-between p-24">
+      <div className="z-10 max-w-5xl w-full items-center justify-between font-mono text-sm">
+        <h1 className="text-4xl font-bold text-center mb-8">
+          Welcome to Next.js!
+        </h1>
+        <div className="text-center">
+          <p className="mb-4">Count: {count}</p>
+          <button 
+            onClick={() => setCount(count + 1)}
+            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+          >
+            Click me
+          </button>
+        </div>
+      </div>
+    </main>
+  )
+}` },
+        { name: "app/globals.css", content: `@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 0, 0, 0;
+  --background-start-rgb: 214, 219, 220;
+  --background-end-rgb: 255, 255, 255;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --foreground-rgb: 255, 255, 255;
+    --background-start-rgb: 0, 0, 0;
+    --background-end-rgb: 0, 0, 0;
+  }
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: linear-gradient(
+      to bottom,
+      transparent,
+      rgb(var(--background-end-rgb))
+    )
+    rgb(var(--background-start-rgb));
+}` }
+      ]
+    },
+    nodejs: {
+      name: "Node.js",
+      language: "javascript",
+      files: [
+        { name: "package.json", content: `{
+  "name": "nodejs-project",
+  "version": "1.0.0",
+  "description": "A Node.js project",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test": "jest"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2",
+    "jest": "^29.7.0"
+  },
+  "keywords": ["nodejs", "express", "api"],
+  "author": "",
+  "license": "ISC"
+}` },
+        { name: "index.js", content: `const express = require('express');
+const cors = require('cors');
+require('dotenv').config();
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Routes
+app.get('/', (req, res) => {
+  res.json({
+    message: 'Welcome to Node.js API!',
+    timestamp: new Date().toISOString(),
+    version: '1.0.0'
+  });
+});
+
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'OK',
+    uptime: process.uptime(),
+    memory: process.memoryUsage()
+  });
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ error: 'Something went wrong!' });
+});
+
+// 404 handler
+app.use('*', (req, res) => {
+  res.status(404).json({ error: 'Route not found' });
+});
+
+app.listen(PORT, () => {
+  console.log(\`Server is running on port \${PORT}\`);
+});` },
+        { name: ".env", content: `PORT=3000
+NODE_ENV=development
+# Add your environment variables here` },
+        { name: "README.md", content: `# Node.js Project
+
+A basic Node.js Express server.
+
+## Getting Started
+
+### Installation
+
+\`\`\`bash
+npm install
+\`\`\`
+
+### Development
+
+\`\`\`bash
+npm run dev
+\`\`\`
+
+### Production
+
+\`\`\`bash
+npm start
+\`\`\`
+
+## API Endpoints
+
+- \`GET /\` - Welcome message
+- \`GET /api/health\` - Health check
+
+## Environment Variables
+
+Copy \`.env\` and configure your environment variables.
+` }
+      ]
+    },
+    "react-native": {
+      name: "React Native",
+      language: "javascript",
+      files: [
+        { name: "package.json", content: `{
+  "name": "ReactNativeProject",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "android": "react-native run-android",
+    "ios": "react-native run-ios",
+    "lint": "eslint .",
+    "start": "react-native start",
+    "test": "jest"
+  },
+  "dependencies": {
+    "react": "18.2.0",
+    "react-native": "0.72.6"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.20.0",
+    "@babel/preset-env": "^7.20.0",
+    "@babel/runtime": "^7.20.0",
+    "@react-native/eslint-config": "^0.72.2",
+    "@react-native/metro-config": "^0.72.11",
+    "@tsconfig/react-native": "^3.0.0",
+    "@types/react": "^18.0.24",
+    "@types/react-test-renderer": "^18.0.0",
+    "babel-jest": "^29.2.1",
+    "eslint": "^8.19.0",
+    "jest": "^29.2.1",
+    "metro-react-native-babel-preset": "0.76.8",
+    "prettier": "^2.4.1",
+    "react-test-renderer": "18.2.0",
+    "typescript": "4.8.4"
+  },
+  "engines": {
+    "node": ">=16"
+  }
+}` },
+        { name: "App.tsx", content: `import React, { useState } from 'react';
+import {
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+
+function App(): JSX.Element {
+  const [count, setCount] = useState(0);
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" />
+      <ScrollView contentInsetAdjustmentBehavior="automatic" style={styles.scrollView}>
+        <View style={styles.body}>
+          <View style={styles.sectionContainer}>
+            <Text style={styles.sectionTitle}>Welcome to React Native!</Text>
+            <Text style={styles.sectionDescription}>
+              Edit App.tsx to change this screen and then come back to see your edits.
+            </Text>
+          </View>
+          <View style={styles.sectionContainer}>
+            <Text style={styles.sectionTitle}>Count: {count}</Text>
+            <TouchableOpacity
+              style={styles.button}
+              onPress={() => setCount(count + 1)}>
+              <Text style={styles.buttonText}>Press me!</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  scrollView: {
+    backgroundColor: '#f8f8f8',
+  },
+  body: {
+    backgroundColor: '#fff',
+    padding: 20,
+  },
+  sectionContainer: {
+    marginTop: 32,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+  },
+  sectionTitle: {
+    fontSize: 24,
+    fontWeight: '600',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  sectionDescription: {
+    marginTop: 8,
+    fontSize: 18,
+    fontWeight: '400',
+    textAlign: 'center',
+    color: '#666',
+  },
+  button: {
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginTop: 16,
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+});
+
+export default App;` },
+        { name: "index.js", content: `import {AppRegistry} from 'react-native';
+import App from './App';
+import {name as appName} from './app.json';
+
+AppRegistry.registerComponent(appName, () => App);` },
+        { name: "app.json", content: `{
+  "name": "ReactNativeProject",
+  "displayName": "ReactNativeProject"
+}` },
+        { name: "babel.config.js", content: `module.exports = {
+  presets: ['module:metro-react-native-babel-preset'],
+};` },
+        { name: "metro.config.js", content: `const {getDefaultConfig, mergeConfig} = require('@react-native/metro-config');
+
+/**
+ * Metro configuration
+ * https://facebook.github.io/metro/docs/configuration
+ *
+ * @type {import('metro-config').MetroConfig}
+ */
+const config = {};
+
+module.exports = mergeConfig(getDefaultConfig(__dirname), config);` }
+      ]
+    }
+  };
+
+  const createProjectFiles = async (projectId: number, framework: string) => {
+    const template = frameworks[framework as keyof typeof frameworks];
+    if (!template) return;
+
+    for (const file of template.files) {
+      const pathParts = file.name.split('/');
+      let parentId = null;
+      let currentPath = '';
+
+      // Create folders if needed
+      for (let i = 0; i < pathParts.length - 1; i++) {
+        const folderName = pathParts[i];
+        currentPath += (currentPath ? '/' : '') + folderName;
+        
+        try {
+          const folderResponse = await apiRequest("POST", "/api/files", {
+            name: folderName,
+            path: currentPath,
+            projectId,
+            parentId,
+            content: "",
+            type: "folder",
+          }) as unknown as File;
+          parentId = folderResponse.id;
+        } catch (error) {
+          console.error(`Error creating folder ${folderName}:`, error);
+        }
+      }
+
+      // Create the file
+      const fileName = pathParts[pathParts.length - 1];
+      currentPath += (currentPath ? '/' : '') + fileName;
+
+      try {
+        await apiRequest("POST", "/api/files", {
+          name: fileName,
+          path: currentPath,
+          projectId,
+          parentId,
+          content: file.content,
+          type: "file",
+        });
+      } catch (error) {
+        console.error(`Error creating file ${fileName}:`, error);
+      }
+    }
+
+    queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
+  };
 
   // Mutations for file operations
   const createFileMutation = useMutation({
@@ -75,6 +676,19 @@ export default function IDE() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", currentProject?.id, "files"] });
+    },
+  });
+
+  const createProjectMutation = useMutation({
+    mutationFn: async (data: { name: string; description: string; language: string }) => {
+      const response = await apiRequest("POST", "/api/projects", data);
+      return response as unknown as Project;
+    },
+    onSuccess: (newProject: Project) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      setCurrentProject(newProject);
+      // Create initial files based on framework
+      setTimeout(() => createProjectFiles(newProject.id, selectedFramework), 100);
     },
   });
 
@@ -182,6 +796,26 @@ export default function IDE() {
   };
 
   // Menu handlers
+  const handleNewProject = () => {
+    setShowNewProjectDialog(true);
+  };
+
+  const handleCreateProject = () => {
+    if (!newProjectName.trim()) return;
+    
+    const framework = frameworks[selectedFramework as keyof typeof frameworks];
+    createProjectMutation.mutate({
+      name: newProjectName,
+      description: newProjectDescription,
+      language: framework.language,
+    });
+    
+    setNewProjectName("");
+    setNewProjectDescription("");
+    setSelectedFramework("vanilla");
+    setShowNewProjectDialog(false);
+  };
+
   const handleNewFile = () => {
     setShowNewFileDialog(true);
   };
@@ -324,6 +958,11 @@ export default function IDE() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent>
+                <DropdownMenuItem onClick={handleNewProject}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  New Project
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleNewFile}>
                   New File
                 </DropdownMenuItem>
@@ -616,6 +1255,93 @@ export default function IDE() {
           </div>
         </div>
       </footer>
+
+      {/* New Project Dialog */}
+      <Dialog open={showNewProjectDialog} onOpenChange={setShowNewProjectDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-2">
+              <Plus className="w-5 h-5" />
+              <span>Create New Project</span>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 gap-4">
+              <div>
+                <label className="text-sm font-medium mb-2 block">Project Name</label>
+                <Input
+                  placeholder="my-awesome-project"
+                  value={newProjectName}
+                  onChange={(e) => setNewProjectName(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-2 block">Description (Optional)</label>
+                <Textarea
+                  placeholder="Describe your project..."
+                  value={newProjectDescription}
+                  onChange={(e) => setNewProjectDescription(e.target.value)}
+                  rows={3}
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-2 block">Framework</label>
+                <Select value={selectedFramework} onValueChange={setSelectedFramework}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose a framework" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="vanilla">
+                      <div className="flex items-center space-x-2">
+                        <span>🌟</span>
+                        <span>Vanilla JavaScript</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="react">
+                      <div className="flex items-center space-x-2">
+                        <span>⚛️</span>
+                        <span>React</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="nextjs">
+                      <div className="flex items-center space-x-2">
+                        <span>🔺</span>
+                        <span>Next.js</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="nodejs">
+                      <div className="flex items-center space-x-2">
+                        <span>🟢</span>
+                        <span>Node.js</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="react-native">
+                      <div className="flex items-center space-x-2">
+                        <span>📱</span>
+                        <span>React Native</span>
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {frameworks[selectedFramework as keyof typeof frameworks]?.name} - Includes starter files and configuration
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end space-x-2">
+              <Button variant="outline" onClick={() => setShowNewProjectDialog(false)}>
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleCreateProject} 
+                disabled={!newProjectName.trim() || createProjectMutation.isPending}
+              >
+                {createProjectMutation.isPending ? "Creating..." : "Create Project"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* New File Dialog */}
       <Dialog open={showNewFileDialog} onOpenChange={setShowNewFileDialog}>
