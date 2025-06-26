@@ -2,11 +2,13 @@ import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import FileExplorer from "@/components/file-explorer";
 import MonacoEditor from "@/components/monaco-editor";
 import ConsolePanel from "@/components/console-panel";
 import { useWebSocket } from "@/hooks/use-websocket";
-import { Play, Share, User, Code, GitBranch, Wifi } from "lucide-react";
+import { Play, Share, User, Code, GitBranch, Wifi, ChevronDown, Keyboard } from "lucide-react";
 import type { Project, File } from "@shared/schema";
 
 export default function IDE() {
@@ -18,6 +20,9 @@ export default function IDE() {
     content: string;
     timestamp: string;
   }>>([]);
+  const [sidebarVisible, setSidebarVisible] = useState(true);
+  const [consoleVisible, setConsoleVisible] = useState(true);
+  const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
 
   const { data: projects } = useQuery<Project[]>({
     queryKey: ["/api/projects"],
@@ -133,6 +138,43 @@ export default function IDE() {
     }
   };
 
+  // Menu handlers
+  const handleSaveFile = () => {
+    const activeFile = openFiles.find(f => f.id === activeFileId);
+    if (activeFile) {
+      // Trigger save mutation in Monaco editor via Ctrl+S simulation
+      const event = new KeyboardEvent('keydown', {
+        key: 's',
+        ctrlKey: true,
+        metaKey: true,
+      });
+      document.dispatchEvent(event);
+    }
+  };
+
+  const handleCloseFile = () => {
+    if (activeFileId) {
+      handleFileClose(activeFileId);
+    }
+  };
+
+  const handleCloseAllFiles = () => {
+    setOpenFiles([]);
+    setActiveFileId(null);
+  };
+
+  const handleToggleSidebar = () => {
+    setSidebarVisible(!sidebarVisible);
+  };
+
+  const handleToggleConsole = () => {
+    setConsoleVisible(!consoleVisible);
+  };
+
+  const handleClearConsole = () => {
+    setConsoleOutput([]);
+  };
+
   const activeFile = openFiles.find(f => f.id === activeFileId);
 
   return (
@@ -144,12 +186,153 @@ export default function IDE() {
             <Code className="accent-blue h-5 w-5" />
             <span className="font-semibold text-lg text-ide-primary">CodeSpace</span>
           </div>
-          <nav className="hidden md:flex items-center space-x-4 text-sm">
-            <button className="text-ide-secondary hover:text-[var(--accent-blue)] transition-colors">File</button>
-            <button className="text-ide-secondary hover:text-[var(--accent-blue)] transition-colors">Edit</button>
-            <button className="text-ide-secondary hover:text-[var(--accent-blue)] transition-colors">View</button>
-            <button className="text-ide-secondary hover:text-[var(--accent-blue)] transition-colors">Terminal</button>
-            <button className="text-ide-secondary hover:text-[var(--accent-blue)] transition-colors">Help</button>
+          <nav className="hidden md:flex items-center space-x-1 text-sm">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="text-ide-secondary hover:text-[var(--accent-blue)] transition-colors h-8 px-3">
+                  File
+                  <ChevronDown className="ml-1 h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem>
+                  New File
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  New Folder
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem>
+                  Open File
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleSaveFile}>
+                  Save
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  Save All
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleCloseFile}>
+                  Close File
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleCloseAllFiles}>
+                  Close All
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="text-ide-secondary hover:text-[var(--accent-blue)] transition-colors h-8 px-3">
+                  Edit
+                  <ChevronDown className="ml-1 h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem>
+                  Undo
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  Redo
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem>
+                  Cut
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  Copy
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  Paste
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem>
+                  Find
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  Replace
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="text-ide-secondary hover:text-[var(--accent-blue)] transition-colors h-8 px-3">
+                  View
+                  <ChevronDown className="ml-1 h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={handleToggleSidebar}>
+                  Toggle Sidebar
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleToggleConsole}>
+                  Toggle Console
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem>
+                  Zoom In
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  Zoom Out
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  Reset Zoom
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem>
+                  Full Screen
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="text-ide-secondary hover:text-[var(--accent-blue)] transition-colors h-8 px-3">
+                  Terminal
+                  <ChevronDown className="ml-1 h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem>
+                  New Terminal
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  Split Terminal
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleClearConsole}>
+                  Clear Terminal
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  Kill Terminal
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="text-ide-secondary hover:text-[var(--accent-blue)] transition-colors h-8 px-3">
+                  Help
+                  <ChevronDown className="ml-1 h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={() => setShowKeyboardShortcuts(true)}>
+                  Keyboard Shortcuts
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  Documentation
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem>
+                  Report Issue
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  About CodeSpace
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </nav>
         </div>
         <div className="flex items-center space-x-3">
@@ -173,7 +356,8 @@ export default function IDE() {
 
       <div className="flex h-full">
         {/* Sidebar */}
-        <aside className="w-64 sidebar-bg border-r border-ide flex flex-col">
+        {sidebarVisible && (
+          <aside className="w-64 sidebar-bg border-r border-ide flex flex-col">
           {/* Project Info */}
           <div className="p-4 border-b border-ide">
             <div className="flex items-center justify-between mb-3">
@@ -187,7 +371,7 @@ export default function IDE() {
                   <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
                   <span className="capitalize">{currentProject.language}</span>
                 </div>
-                <div>Last modified: {new Date(currentProject.updatedAt).toLocaleString()}</div>
+                <div>Last modified: {currentProject.updatedAt ? new Date(currentProject.updatedAt).toLocaleString() : 'Never'}</div>
               </div>
             )}
           </div>
@@ -212,7 +396,8 @@ export default function IDE() {
               </div>
             </div>
           </div>
-        </aside>
+          </aside>
+        )}
 
         {/* Main Content Area */}
         <div className="flex-1 flex flex-col">
@@ -276,7 +461,7 @@ export default function IDE() {
           </div>
 
           {/* Bottom Panel */}
-          <ConsolePanel output={consoleOutput} />
+          {consoleVisible && <ConsolePanel output={consoleOutput} />}
         </div>
       </div>
 
@@ -302,6 +487,100 @@ export default function IDE() {
           </div>
         </div>
       </footer>
+
+      {/* Keyboard Shortcuts Modal */}
+      <Dialog open={showKeyboardShortcuts} onOpenChange={setShowKeyboardShortcuts}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-2">
+              <Keyboard className="w-5 h-5" />
+              <span>Keyboard Shortcuts</span>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
+            <div>
+              <h3 className="font-semibold mb-3">File Operations</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span>Save File</span>
+                  <span className="text-muted-foreground">Ctrl+S</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>New File</span>
+                  <span className="text-muted-foreground">Ctrl+N</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Close File</span>
+                  <span className="text-muted-foreground">Ctrl+W</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Open File</span>
+                  <span className="text-muted-foreground">Ctrl+O</span>
+                </div>
+              </div>
+            </div>
+            <div>
+              <h3 className="font-semibold mb-3">Editor</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span>Find</span>
+                  <span className="text-muted-foreground">Ctrl+F</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Replace</span>
+                  <span className="text-muted-foreground">Ctrl+H</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Go to Line</span>
+                  <span className="text-muted-foreground">Ctrl+G</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Comment Line</span>
+                  <span className="text-muted-foreground">Ctrl+/</span>
+                </div>
+              </div>
+            </div>
+            <div>
+              <h3 className="font-semibold mb-3">Code Execution</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span>Run Code</span>
+                  <span className="text-muted-foreground">F5</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Stop Execution</span>
+                  <span className="text-muted-foreground">Shift+F5</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Clear Console</span>
+                  <span className="text-muted-foreground">Ctrl+K</span>
+                </div>
+              </div>
+            </div>
+            <div>
+              <h3 className="font-semibold mb-3">View</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span>Toggle Sidebar</span>
+                  <span className="text-muted-foreground">Ctrl+B</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Toggle Console</span>
+                  <span className="text-muted-foreground">Ctrl+`</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Zoom In</span>
+                  <span className="text-muted-foreground">Ctrl++</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Zoom Out</span>
+                  <span className="text-muted-foreground">Ctrl+-</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

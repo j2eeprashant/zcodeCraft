@@ -258,6 +258,8 @@ h1 {
     const project: Project = {
       ...insertProject,
       id,
+      description: insertProject.description || null,
+      language: insertProject.language || "javascript",
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -306,6 +308,9 @@ h1 {
     const file: File = {
       ...insertFile,
       id,
+      content: insertFile.content || "",
+      type: insertFile.type || "file",
+      parentId: insertFile.parentId || null,
       createdAt: new Date(),
       updatedAt: new Date(),
     };

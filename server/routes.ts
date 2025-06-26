@@ -200,7 +200,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         fs.rmSync(tempDir, { recursive: true, force: true });
       }
     } catch (error) {
-      res.status(500).json({ message: "Code execution failed", error: error.message });
+      res.status(500).json({ message: "Code execution failed", error: error instanceof Error ? error.message : "Unknown error" });
     }
   });
 
@@ -296,7 +296,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               if (client.readyState === WebSocket.OPEN) {
                 client.send(JSON.stringify({
                   type: 'error',
-                  content: `Execution failed: ${execError.message}`,
+                  content: `Execution failed: ${execError instanceof Error ? execError.message : "Unknown error"}`,
                   timestamp: new Date().toISOString(),
                 }));
               }
