@@ -596,6 +596,12 @@ module.exports = mergeConfig(getDefaultConfig(__dirname), config);` }
   const createProjectFiles = async (projectId: number, framework: string) => {
     console.log(`createProjectFiles called with projectId: ${projectId} (type: ${typeof projectId}), framework: ${framework}`);
     
+    // Validate projectId
+    if (!projectId || typeof projectId !== 'number' || projectId <= 0) {
+      console.error(`Invalid projectId: ${projectId}`);
+      return;
+    }
+    
     const template = frameworks[framework as keyof typeof frameworks];
     if (!template) {
       console.error(`Template not found for framework: ${framework}`);
@@ -702,13 +708,21 @@ module.exports = mergeConfig(getDefaultConfig(__dirname), config);` }
   const createProjectMutation = useMutation({
     mutationFn: async (data: { name: string; description: string; language: string }) => {
       const response = await apiRequest("POST", "/api/projects", data);
-      return response as unknown as Project;
+      const json = await response.json();
+      console.log('Project creation response:', json);
+      return json as Project;
     },
     onSuccess: (newProject: Project) => {
+      console.log('New project created:', newProject);
+      console.log('Project ID:', newProject.id, 'Type:', typeof newProject.id);
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
       setCurrentProject(newProject);
       // Create initial files based on framework
-      setTimeout(() => createProjectFiles(newProject.id, selectedFramework), 100);
+      if (newProject.id && selectedFramework) {
+        setTimeout(() => createProjectFiles(newProject.id, selectedFramework), 100);
+      } else {
+        console.error('Missing project ID or framework:', { projectId: newProject.id, framework: selectedFramework });
+      }
     },
   });
 
