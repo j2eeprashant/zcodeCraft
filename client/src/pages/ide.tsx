@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { apiRequest } from "@/lib/queryClient";
 import FileExplorer from "@/components/file-explorer";
 import MonacoEditor from "@/components/monaco-editor";
 import ConsolePanel from "@/components/console-panel";
@@ -23,6 +25,10 @@ export default function IDE() {
   const [sidebarVisible, setSidebarVisible] = useState(true);
   const [consoleVisible, setConsoleVisible] = useState(true);
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
+  const [showNewFileDialog, setShowNewFileDialog] = useState(false);
+  const [showNewFolderDialog, setShowNewFolderDialog] = useState(false);
+  const [newFileName, setNewFileName] = useState("");
+  const [newFolderName, setNewFolderName] = useState("");
 
   const { data: projects } = useQuery<Project[]>({
     queryKey: ["/api/projects"],
@@ -34,6 +40,43 @@ export default function IDE() {
   });
 
   const { sendMessage, lastMessage, connectionStatus } = useWebSocket();
+  const queryClient = useQueryClient();
+
+  // Mutations for file operations
+  const createFileMutation = useMutation({
+    mutationFn: async (data: { name: string; path: string; projectId: number; parentId?: number }) => {
+      return apiRequest("POST", "/api/files", {
+        ...data,
+        content: "",
+        type: "file",
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", currentProject?.id, "files"] });
+    },
+  });
+
+  const createFolderMutation = useMutation({
+    mutationFn: async (data: { name: string; path: string; projectId: number; parentId?: number }) => {
+      return apiRequest("POST", "/api/files", {
+        ...data,
+        content: "",
+        type: "folder",
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", currentProject?.id, "files"] });
+    },
+  });
+
+  const saveFileMutation = useMutation({
+    mutationFn: async ({ fileId, content }: { fileId: number; content: string }) => {
+      return apiRequest("PUT", `/api/files/${fileId}`, { content });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", currentProject?.id, "files"] });
+    },
+  });
 
   // Set default project
   useEffect(() => {
@@ -139,17 +182,85 @@ export default function IDE() {
   };
 
   // Menu handlers
+  const handleNewFile = () => {
+    setShowNewFileDialog(true);
+  };
+
+  const handleNewFolder = () => {
+    setShowNewFolderDialog(true);
+  };
+
+  const handleCreateFile = () => {
+    if (!newFileName.trim() || !currentProject) return;
+    
+    createFileMutation.mutate({
+      name: newFileName,
+      path: newFileName,
+      projectId: currentProject.id,
+    });
+    
+    setNewFileName("");
+    setShowNewFileDialog(false);
+  };
+
+  const handleCreateFolder = () => {
+    if (!newFolderName.trim() || !currentProject) return;
+    
+    createFolderMutation.mutate({
+      name: newFolderName,
+      path: newFolderName,
+      projectId: currentProject.id,
+    });
+    
+    setNewFolderName("");
+    setShowNewFolderDialog(false);
+  };
+
   const handleSaveFile = () => {
     const activeFile = openFiles.find(f => f.id === activeFileId);
     if (activeFile) {
-      // Trigger save mutation in Monaco editor via Ctrl+S simulation
-      const event = new KeyboardEvent('keydown', {
-        key: 's',
-        ctrlKey: true,
-        metaKey: true,
+      saveFileMutation.mutate({
+        fileId: activeFile.id,
+        content: activeFile.content,
       });
-      document.dispatchEvent(event);
     }
+  };
+
+  const handleSaveAllFiles = () => {
+    openFiles.forEach(file => {
+      saveFileMutation.mutate({
+        fileId: file.id,
+        content: file.content,
+      });
+    });
+  };
+
+  const handleOpenFile = () => {
+    // Create a hidden file input element to trigger file selection
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '*/*';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file && currentProject) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const content = event.target?.result as string;
+          // Use apiRequest directly for file upload with content
+          apiRequest("POST", "/api/files", {
+            name: file.name,
+            path: file.name,
+            projectId: currentProject.id,
+            content,
+            type: "file",
+          }).then(() => {
+            queryClient.invalidateQueries({ queryKey: ["/api/projects", currentProject.id, "files"] });
+          });
+        };
+        reader.readAsText(file);
+      }
+    };
+    input.click();
   };
 
   const handleCloseFile = () => {
@@ -175,6 +286,24 @@ export default function IDE() {
     setConsoleOutput([]);
   };
 
+  const handleNewTerminal = () => {
+    // Add a new terminal tab to console
+    setConsoleOutput(prev => [...prev, {
+      type: 'info',
+      content: 'New terminal session started',
+      timestamp: new Date().toISOString(),
+    }]);
+  };
+
+  const handleSplitTerminal = () => {
+    // Simulate split terminal
+    setConsoleOutput(prev => [...prev, {
+      type: 'info',
+      content: 'Terminal split - feature coming soon',
+      timestamp: new Date().toISOString(),
+    }]);
+  };
+
   const activeFile = openFiles.find(f => f.id === activeFileId);
 
   return (
@@ -195,20 +324,20 @@ export default function IDE() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent>
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={handleNewFile}>
                   New File
                 </DropdownMenuItem>
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={handleNewFolder}>
                   New Folder
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={handleOpenFile}>
                   Open File
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleSaveFile}>
                   Save
                 </DropdownMenuItem>
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={handleSaveAllFiles}>
                   Save All
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
@@ -294,10 +423,10 @@ export default function IDE() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent>
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={handleNewTerminal}>
                   New Terminal
                 </DropdownMenuItem>
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={handleSplitTerminal}>
                   Split Terminal
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
@@ -487,6 +616,64 @@ export default function IDE() {
           </div>
         </div>
       </footer>
+
+      {/* New File Dialog */}
+      <Dialog open={showNewFileDialog} onOpenChange={setShowNewFileDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New File</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Input
+              placeholder="filename.js"
+              value={newFileName}
+              onChange={(e) => setNewFileName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleCreateFile();
+                }
+              }}
+            />
+            <div className="flex justify-end space-x-2">
+              <Button variant="outline" onClick={() => setShowNewFileDialog(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleCreateFile} disabled={!newFileName.trim()}>
+                Create
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* New Folder Dialog */}
+      <Dialog open={showNewFolderDialog} onOpenChange={setShowNewFolderDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Folder</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Input
+              placeholder="folder-name"
+              value={newFolderName}
+              onChange={(e) => setNewFolderName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleCreateFolder();
+                }
+              }}
+            />
+            <div className="flex justify-end space-x-2">
+              <Button variant="outline" onClick={() => setShowNewFolderDialog(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleCreateFolder} disabled={!newFolderName.trim()}>
+                Create
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Keyboard Shortcuts Modal */}
       <Dialog open={showKeyboardShortcuts} onOpenChange={setShowKeyboardShortcuts}>
