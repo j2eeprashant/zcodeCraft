@@ -594,6 +594,8 @@ module.exports = mergeConfig(getDefaultConfig(__dirname), config);` }
   };
 
   const createProjectFiles = async (projectId: number, framework: string) => {
+    console.log(`createProjectFiles called with projectId: ${projectId} (type: ${typeof projectId}), framework: ${framework}`);
+    
     const template = frameworks[framework as keyof typeof frameworks];
     if (!template) {
       console.error(`Template not found for framework: ${framework}`);
@@ -617,7 +619,7 @@ module.exports = mergeConfig(getDefaultConfig(__dirname), config);` }
           const folderData = {
             name: folderName,
             path: currentPath,
-            projectId: projectId,
+            projectId: Number(projectId),
             parentId: parentId,
             content: "",
             type: "folder",
@@ -642,7 +644,7 @@ module.exports = mergeConfig(getDefaultConfig(__dirname), config);` }
         const fileData = {
           name: fileName,
           path: filePath,
-          projectId: projectId,
+          projectId: Number(projectId),
           parentId: parentId,
           content: file.content || "",
           type: "file",
