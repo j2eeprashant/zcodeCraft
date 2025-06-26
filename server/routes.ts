@@ -101,7 +101,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const file = await storage.createFile(fileData);
       res.status(201).json(file);
     } catch (error) {
-      res.status(400).json({ message: "Invalid file data" });
+      console.error("File creation error:", error);
+      console.error("Request body:", req.body);
+      res.status(400).json({ message: "Invalid file data", error: error instanceof Error ? error.message : "Unknown error" });
     }
   });
 

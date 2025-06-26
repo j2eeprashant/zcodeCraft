@@ -595,11 +595,16 @@ module.exports = mergeConfig(getDefaultConfig(__dirname), config);` }
 
   const createProjectFiles = async (projectId: number, framework: string) => {
     const template = frameworks[framework as keyof typeof frameworks];
-    if (!template) return;
+    if (!template) {
+      console.error(`Template not found for framework: ${framework}`);
+      return;
+    }
+
+    console.log(`Creating files for project ${projectId} with framework ${framework}`);
 
     for (const file of template.files) {
       const pathParts = file.name.split('/');
-      let parentId = null;
+      let parentId: number | null = null;
       let currentPath = '';
 
       // Create folders if needed
@@ -608,39 +613,52 @@ module.exports = mergeConfig(getDefaultConfig(__dirname), config);` }
         currentPath += (currentPath ? '/' : '') + folderName;
         
         try {
-          const folderResponse = await apiRequest("POST", "/api/files", {
+          console.log(`Creating folder: ${folderName} at path: ${currentPath}`);
+          const folderData = {
             name: folderName,
             path: currentPath,
-            projectId,
-            parentId,
+            projectId: projectId,
+            parentId: parentId,
             content: "",
             type: "folder",
-          }) as unknown as File;
+          };
+          console.log('Folder data:', folderData);
+
+          const folderResponse = await apiRequest("POST", "/api/files", folderData) as unknown as File;
           parentId = folderResponse.id;
+          console.log(`Folder created with ID: ${parentId}`);
         } catch (error) {
           console.error(`Error creating folder ${folderName}:`, error);
+          console.error('Folder creation failed, continuing...');
         }
       }
 
       // Create the file
       const fileName = pathParts[pathParts.length - 1];
-      currentPath += (currentPath ? '/' : '') + fileName;
+      const filePath = file.name; // Use the original file name as path
 
       try {
-        await apiRequest("POST", "/api/files", {
+        console.log(`Creating file: ${fileName} at path: ${filePath}`);
+        const fileData = {
           name: fileName,
-          path: currentPath,
-          projectId,
-          parentId,
-          content: file.content,
+          path: filePath,
+          projectId: projectId,
+          parentId: parentId,
+          content: file.content || "",
           type: "file",
-        });
+        };
+        console.log('File data:', fileData);
+
+        await apiRequest("POST", "/api/files", fileData);
+        console.log(`File created successfully: ${fileName}`);
       } catch (error) {
         console.error(`Error creating file ${fileName}:`, error);
       }
     }
 
+    // Refresh the file list
     queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
+    console.log('Project files creation completed');
   };
 
   // Mutations for file operations
