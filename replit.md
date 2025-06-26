@@ -90,6 +90,17 @@ This is a full-stack web-based IDE (Integrated Development Environment) built wi
 
 ## Changelog
 - June 26, 2025. Initial setup
+- June 26, 2025. Fixed project creation system - resolved file creation validation errors and implemented proper cache invalidation for file display
+- June 26, 2025. Added project selector UI for switching between projects and viewing their files
+- June 26, 2025. Enhanced file creation/editing functionality with auto-save and proper Monaco Editor integration
+
+## Recent Changes
+✓ Project creation now works correctly with all framework templates
+✓ Files are properly created and displayed after project creation
+✓ Added project selector dropdown in sidebar for easy project switching
+✓ File creation and folder creation functionality implemented
+✓ Monaco Editor properly integrated with auto-save functionality
+✓ Fixed cache invalidation issues that prevented files from showing
 
 ## User Preferences
 

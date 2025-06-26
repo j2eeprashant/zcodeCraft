@@ -726,24 +726,32 @@ module.exports = mergeConfig(getDefaultConfig(__dirname), config);` }
       // Create initial files based on framework
       if (newProject.id && selectedFramework) {
         await createProjectFiles(newProject.id, selectedFramework);
-        // Force refresh files for the new project
-        await queryClient.invalidateQueries({ queryKey: ["/api/projects", newProject.id, "files"] });
-        // Also manually refetch files to ensure they show up immediately
-        setTimeout(() => {
-          if (currentProject?.id === newProject.id) {
-            refetchFiles();
-          }
-        }, 200);
+        
+        // Force refresh files for the new project - wait a bit for files to be created
+        setTimeout(async () => {
+          await queryClient.invalidateQueries({ queryKey: ["/api/projects", newProject.id, "files"] });
+          await refetchFiles();
+          console.log('Files refreshed for new project');
+        }, 500);
       } else {
         console.error('Missing project ID or framework:', { projectId: newProject.id, framework: selectedFramework });
       }
     },
   });
 
-  // Set default project
+  // Set default project and handle project updates
   useEffect(() => {
-    if (projects && projects.length > 0 && !currentProject) {
-      setCurrentProject(projects[0]);
+    if (projects && projects.length > 0) {
+      if (!currentProject) {
+        // Set first project as default if none selected
+        setCurrentProject(projects[0]);
+      } else {
+        // Update current project data if it exists in the updated projects list
+        const updatedCurrentProject = projects.find(p => p.id === currentProject.id);
+        if (updatedCurrentProject && updatedCurrentProject !== currentProject) {
+          setCurrentProject(updatedCurrentProject);
+        }
+      }
     }
   }, [projects, currentProject]);
 
@@ -872,30 +880,46 @@ module.exports = mergeConfig(getDefaultConfig(__dirname), config);` }
     setShowNewFolderDialog(true);
   };
 
-  const handleCreateFile = () => {
+  const handleCreateFile = async () => {
     if (!newFileName.trim() || !currentProject) return;
     
-    createFileMutation.mutate({
-      name: newFileName,
-      path: newFileName,
-      projectId: currentProject.id,
-    });
-    
-    setNewFileName("");
-    setShowNewFileDialog(false);
+    try {
+      await createFileMutation.mutateAsync({
+        name: newFileName,
+        path: newFileName,
+        projectId: currentProject.id,
+      });
+      
+      // Refresh files after creation
+      await queryClient.invalidateQueries({ queryKey: ["/api/projects", currentProject.id, "files"] });
+      refetchFiles();
+      
+      setNewFileName("");
+      setShowNewFileDialog(false);
+    } catch (error) {
+      console.error('Error creating file:', error);
+    }
   };
 
-  const handleCreateFolder = () => {
+  const handleCreateFolder = async () => {
     if (!newFolderName.trim() || !currentProject) return;
     
-    createFolderMutation.mutate({
-      name: newFolderName,
-      path: newFolderName,
-      projectId: currentProject.id,
-    });
-    
-    setNewFolderName("");
-    setShowNewFolderDialog(false);
+    try {
+      await createFolderMutation.mutateAsync({
+        name: newFolderName,
+        path: newFolderName,
+        projectId: currentProject.id,
+      });
+      
+      // Refresh files after creation
+      await queryClient.invalidateQueries({ queryKey: ["/api/projects", currentProject.id, "files"] });
+      refetchFiles();
+      
+      setNewFolderName("");
+      setShowNewFolderDialog(false);
+    } catch (error) {
+      console.error('Error creating folder:', error);
+    }
   };
 
   const handleSaveFile = () => {
@@ -915,6 +939,24 @@ module.exports = mergeConfig(getDefaultConfig(__dirname), config);` }
         content: file.content,
       });
     });
+  };
+
+  const handleFileContentChange = (fileId: number, newContent: string) => {
+    // Update the file content in openFiles state
+    setOpenFiles(prev => prev.map(file => 
+      file.id === fileId ? { ...file, content: newContent } : file
+    ));
+    
+    // Auto-save after 1 second of no changes
+    setTimeout(() => {
+      const updatedFile = openFiles.find(f => f.id === fileId);
+      if (updatedFile && updatedFile.content === newContent) {
+        saveFileMutation.mutate({
+          fileId: fileId,
+          content: newContent,
+        });
+      }
+    }, 1000);
   };
 
   const handleOpenFile = () => {
@@ -1177,17 +1219,51 @@ module.exports = mergeConfig(getDefaultConfig(__dirname), config);` }
           {/* Project Info */}
           <div className="p-4 border-b border-ide">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="font-semibold text-sm text-ide-primary">
-                {currentProject?.name || "No Project"}
-              </h3>
+              <h3 className="font-semibold text-sm text-ide-primary">Projects</h3>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={handleNewProject}
+                className="h-6 w-6 p-0 text-ide-secondary hover:text-ide-primary"
+              >
+                <Plus className="h-3 w-3" />
+              </Button>
             </div>
+            
+            {/* Project Selector */}
+            <Select 
+              value={currentProject?.id?.toString() || ""} 
+              onValueChange={(value) => {
+                const project = projects?.find(p => p.id.toString() === value);
+                if (project) {
+                  setCurrentProject(project);
+                  setOpenFiles([]); // Clear open files when switching projects
+                  setActiveFileId(null);
+                }
+              }}
+            >
+              <SelectTrigger className="w-full mb-3 h-8 text-sm">
+                <SelectValue placeholder="Select a project" />
+              </SelectTrigger>
+              <SelectContent>
+                {projects?.map((project) => (
+                  <SelectItem key={project.id} value={project.id.toString()}>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                      <span>{project.name}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            
             {currentProject && (
               <div className="text-xs text-ide-secondary">
                 <div className="flex items-center space-x-2 mb-1">
                   <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
                   <span className="capitalize">{currentProject.language}</span>
                 </div>
-                <div>Last modified: {currentProject.updatedAt ? new Date(currentProject.updatedAt).toLocaleString() : 'Never'}</div>
+                <div>Files: {files?.length || 0}</div>
               </div>
             )}
           </div>
