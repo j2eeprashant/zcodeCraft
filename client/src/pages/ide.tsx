@@ -40,7 +40,7 @@ export default function IDE() {
     queryKey: ["/api/projects"],
   });
 
-  const { data: files } = useQuery<File[]>({
+  const { data: files, refetch: refetchFiles } = useQuery<File[]>({
     queryKey: ["/api/projects", currentProject?.id, "files"],
     enabled: !!currentProject?.id,
   });
@@ -664,8 +664,9 @@ module.exports = mergeConfig(getDefaultConfig(__dirname), config);` }
       }
     }
 
-    // Refresh the file list
-    queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
+    // Refresh the file list and projects list
+    await queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
+    await queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
     console.log('Project files creation completed');
   };
 
@@ -712,14 +713,27 @@ module.exports = mergeConfig(getDefaultConfig(__dirname), config);` }
       console.log('Project creation response:', json);
       return json as Project;
     },
-    onSuccess: (newProject: Project) => {
+    onSuccess: async (newProject: Project) => {
       console.log('New project created:', newProject);
       console.log('Project ID:', newProject.id, 'Type:', typeof newProject.id);
-      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      
+      // Update projects list first
+      await queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      
+      // Set the new project as current
       setCurrentProject(newProject);
+      
       // Create initial files based on framework
       if (newProject.id && selectedFramework) {
-        setTimeout(() => createProjectFiles(newProject.id, selectedFramework), 100);
+        await createProjectFiles(newProject.id, selectedFramework);
+        // Force refresh files for the new project
+        await queryClient.invalidateQueries({ queryKey: ["/api/projects", newProject.id, "files"] });
+        // Also manually refetch files to ensure they show up immediately
+        setTimeout(() => {
+          if (currentProject?.id === newProject.id) {
+            refetchFiles();
+          }
+        }, 200);
       } else {
         console.error('Missing project ID or framework:', { projectId: newProject.id, framework: selectedFramework });
       }
